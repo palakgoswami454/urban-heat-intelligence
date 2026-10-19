@@ -128,9 +128,28 @@ def run(cfg: Config):
     tv = float(np.nanpercentile(np.abs(maps["trend"][np.isfinite(maps["trend"])]), 98)) if np.isfinite(maps["trend"]).any() else 1
     _img(ax[1], maps["trend"], "Warming trend of anomaly", cmap="PuOr_r", vmin=-tv, vmax=tv, label="deg C / year")
     sy = [s for s in summ["suhi_by_year"] if s["suhi_c"] is not None]
-    ax[2].plot([s["year"] for s in sy], [s["suhi_c"] for s in sy], "o-", color="#d95f02")
-    ax[2].set_title("Surface urban heat island intensity\n(built-up minus vegetated)"); ax[2].set_ylabel("deg C")
+    ax[2].plot([s["year"] for s in sy], [s["suhi_c"] for s in sy], "o-", color="#d95f02", label="built-up minus vegetation")
+    sf = [s for s in summ["suhi_by_year"] if s.get("urban_minus_fallow_c") is not None]
+    if sf:
+        ax[2].plot([s["year"] for s in sf], [s["urban_minus_fallow_c"] for s in sf], "s-", color="#8c6d31",
+                   label="built-up minus bare/fallow")
+    ax[2].axhline(0, color="grey", lw=0.6)
+    ax[2].legend(fontsize=7); ax[2].set_title("Surface heat contrast of built-up land"); ax[2].set_ylabel("deg C")
     _save(fig, cfg, "08_heat_and_trend", demo)
+
+    # 10 heat anomaly by land-cover class
+    hb = summ.get("heat_by_land_cover") or {}
+    if hb:
+        fig, ax = plt.subplots(figsize=(7, 3.6))
+        stats = [{"label": f"{k}\n(n={v['n_pixels']:,})", "whislo": v["q"][0], "q1": v["q"][1], "med": v["q"][2],
+                  "q3": v["q"][3], "whishi": v["q"][4], "mean": v["mean"]} for k, v in hb.items()]
+        ax.bxp(stats, showfliers=False, showmeans=True, patch_artist=True,
+               boxprops={"facecolor": "#fdd49e"}, medianprops={"color": "#b30000"})
+        ax.axhline(0, color="grey", lw=0.6, ls="--")
+        ax.set_ylabel("Heat anomaly vs city median (deg C)")
+        ax.set_title(f"Summer surface heat by land cover ({summ.get('land_cover_source', '')})", fontsize=9)
+        plt.setp(ax.get_xticklabels(), fontsize=7.5)
+        _save(fig, cfg, "10_heat_by_land_cover", demo)
 
     # forecasting figures
     fpath = cfg.out_dir / "metrics_forecast.json"

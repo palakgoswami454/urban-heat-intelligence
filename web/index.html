@@ -38,9 +38,14 @@
       <section class="panel active" id="tab-overview">
         <div class="kpis" id="kpis"></div>
         <div class="card">
-          <h3>Surface urban heat island</h3>
-          <p class="muted">How much hotter built-up land is than vegetated land, each summer.</p>
+          <h3>How hot is built-up land?</h3>
+          <p class="muted">Surface temperature of built-up land minus green land, and minus bare/fallow farmland, each summer.</p>
           <div class="chart-box"><canvas id="suhi-chart"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>Hottest surfaces by land cover</h3>
+          <p class="muted">Mean heat anomaly (recent summers) for pixels mostly of each type.</p>
+          <div id="lc-heat"></div>
         </div>
         <div class="card">
           <h3>What the hotspots need</h3>
@@ -62,7 +67,7 @@
       <section class="panel" id="tab-hotspots">
         <div class="card">
           <h3>Top priority areas</h3>
-          <p class="muted">Ranked by heat anomaly (55%), built-up exposure (30%) and warming trend (15%). Click to zoom.</p>
+          <p class="muted">Ranked by heat anomaly (50%), built-up exposure (35%) and warming trend (15%); areas with almost no buildings are down-weighted. Click to zoom.</p>
           <ol class="rank" id="rank-list"></ol>
         </div>
       </section>

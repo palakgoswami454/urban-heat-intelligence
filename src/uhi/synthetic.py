@@ -71,5 +71,13 @@ def make_demo_scenes(cfg: Config, n_scenes: int = 10, resolution: int = 80) -> l
         save_scene(out, date, X, lst, source="SYNTHETIC-DEMO")
         saved.append(out.name)
     np.save(cfg.data_dir / "dem_demo.npy", dem.astype("float32"))
+    b = np.clip(built, 0, 1); w = np.clip(water, 0, 1) * (1 - b)
+    t = np.clip(veg - 0.45, 0, 1) * 1.5 * (1 - b - w)
+    rest = np.clip(1 - b - w - t, 0, 1)
+    from .data_satellite import worldcover_path
+    np.savez_compressed(worldcover_path(cfg), built=b.astype("float16"), water=w.astype("float16"),
+                        tree=t.astype("float16"), shrub_grass=(0.2 * rest).astype("float16"),
+                        cropland=(0.5 * rest).astype("float16"), bare=(0.3 * rest).astype("float16"),
+                        other=np.zeros_like(b, dtype="float16"))
     print(f"[demo] {len(saved)} synthetic scenes written to {cfg.scenes_dir}")
     return saved

@@ -11,9 +11,13 @@ on:
       epochs:
         description: "Maximum training epochs per deep learning model"
         default: "20"
+      reuse_run_id:
+        description: "Optional: ID of an earlier successful run whose trained models to reuse (skips training)"
+        default: ""
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: pipeline
@@ -44,16 +48,28 @@ jobs:
           restore-keys: |
             data-${{ hashFiles('src/uhi/config.py') }}-
 
+      - name: Reuse trained models from an earlier run
+        if: inputs.reuse_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          pattern: outputs-*
+          merge-multiple: true
+          path: .
+          run-id: ${{ inputs.reuse_run_id }}
+          github-token: ${{ github.token }}
+
       - name: "1/6 Download satellite + weather data"
         run: python run_pipeline.py --stage download --max-scenes ${{ inputs.max_scenes }}
 
       - name: "2/6 Train surface-temperature models"
+        if: inputs.reuse_run_id == ''
         run: python run_pipeline.py --stage train --epochs ${{ inputs.epochs }}
 
       - name: "3/6 Explainability, scenarios, hotspots"
         run: python run_pipeline.py --stage analyze
 
       - name: "4/6 Train heat forecaster"
+        if: inputs.reuse_run_id == ''
         run: python run_pipeline.py --stage forecast
 
       - name: "5/6 Figures"

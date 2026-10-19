@@ -1,10 +1,11 @@
 import { forecast } from "./lstm.js";
 
 const REC_COLORS = {
-  greening: "#3a8d4f", cool_roofs: "#2a7ab0", protect_green: "#1f5f33", water: "#44a6c6", monitor: "#b9b0a6",
+  greening: "#3a8d4f", cool_roofs: "#2a7ab0", protect_green: "#1f5f33", water: "#44a6c6", bare_land: "#c9a27c", monitor: "#b9b0a6",
 };
 const REC_SHORT = {
-  greening: "Urban greening", cool_roofs: "Cool roofs", protect_green: "Protect green cover", water: "Water body", monitor: "Monitor",
+  greening: "Urban greening", cool_roofs: "Cool roofs", protect_green: "Protect green cover", water: "Water body",
+  bare_land: "Bare / fallow land", monitor: "Monitor",
 };
 const MODEL_NAMES = {
   "city_median (no model)": "City median (no model)", linear_regression: "Linear regression",
@@ -167,7 +168,7 @@ function showDetail(c) {
     ${driverBars(c.drivers)}
     <h3 style="margin-top:10px">Heat anomaly by year</h3>
     ${sparkline(c.years, m.years)}
-    <div class="small muted">Built-up/bare ${Math.round(c.built * 100)}% · green ${Math.round(c.green * 100)}% · water ${Math.round(c.water * 100)}% · NDVI ${fmt(c.ndvi, 2)}</div>`;
+    <div class="small muted">Land cover: built-up ${Math.round(c.built * 100)}% · green ${Math.round(c.green * 100)}%${c.fallow !== undefined ? ` · bare/fallow ${Math.round(c.fallow * 100)}%` : ""} · water ${Math.round(c.water * 100)}% · NDVI ${fmt(c.ndvi, 2)}</div>`;
   el.hidden = false;
   el.querySelector(".x").onclick = () => (el.hidden = true);
 }
@@ -177,22 +178,34 @@ function renderKPIs() {
   const m = GRID.meta, lst = METRICS.lst.results[METRICS.lst.best_model];
   const suhi = m.suhi_by_year.filter((s) => s.suhi_c !== null);
   const last = suhi[suhi.length - 1];
-  const cool = Math.min(METRICS.cooling.greening_hotspots_c, METRICS.cooling.roofs_hotspots_c);
+  const cu = METRICS.cooling.greening_urban_hotspots_c ?? METRICS.cooling.greening_hotspots_c;
+  const cr = METRICS.cooling.roofs_urban_hotspots_c ?? METRICS.cooling.roofs_hotspots_c;
+  const cool = Math.min(cu, cr);
+  const urban = m.n_urban_hotspots ?? m.n_hotspots;
   $("#kpis").innerHTML = [
-    ["hot", m.n_hotspots, `hotspot areas (≥ +${fmt(m.hotspot_threshold_c)}°C)`],
-    ["hot", last ? `${fmt(last.suhi_c)}°C` : "–", `urban heat island, ${last ? last.year : ""}`],
+    ["hot", urban, `hotspots in built-up areas (of ${m.n_hotspots} ≥ +${fmt(m.hotspot_threshold_c)}°C)`],
+    ["hot", last ? `${fmt(last.suhi_c)}°C` : "–", `built-up vs. green land, ${last ? last.year : ""}`],
     ["", `${fmt(lst.rmse, 2)}°C`, `model error (RMSE) · R² ${fmt(lst.r2, 2)}`],
-    ["cool", `${fmt(cool, 1)}°C`, "avg. cooling possible in hotspots"],
+    ["cool", `${fmt(cool, 1)}°C`, "avg. modelled cooling, urban hotspots"],
   ].map(([cls, v, l]) => `<div class="kpi ${cls}"><div class="v">${v}</div><div class="l">${l}</div></div>`).join("");
 }
 
 function renderSuhi() {
-  const s = GRID.meta.suhi_by_year.filter((x) => x.suhi_c !== null);
+  const s = GRID.meta.suhi_by_year;
+  const ds = [{ label: "vs. green land", data: s.map((x) => x.suhi_c), borderColor: "#e4572e", backgroundColor: "#e4572e", tension: 0.3 }];
+  if (s.some((x) => x.urban_minus_fallow_c !== undefined && x.urban_minus_fallow_c !== null))
+    ds.push({ label: "vs. bare/fallow land", data: s.map((x) => x.urban_minus_fallow_c), borderColor: "#a07a4a", backgroundColor: "#a07a4a", tension: 0.3 });
   new Chart($("#suhi-chart"), {
     type: "line",
-    data: { labels: s.map((x) => x.year), datasets: [{ data: s.map((x) => x.suhi_c), borderColor: "#e4572e", backgroundColor: "rgba(228,87,46,.12)", fill: true, tension: 0.3 }] },
-    options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { title: { display: true, text: "°C" } } } },
+    data: { labels: s.map((x) => x.year), datasets: ds },
+    options: { maintainAspectRatio: false, plugins: { legend: { labels: { boxWidth: 10, font: { size: 11 } } } }, scales: { y: { title: { display: true, text: "°C" } } } },
   });
+  const hb = GRID.meta.heat_by_land_cover || {};
+  const vals = Object.values(hb).map((v) => Math.abs(v.mean)), mx = Math.max(0.5, ...vals);
+  $("#lc-heat").innerHTML = Object.entries(hb).sort((a, b) => b[1].mean - a[1].mean).map(([k, v]) => {
+    const w = (Math.abs(v.mean) / mx) * 50, left = v.mean >= 0 ? 50 : 50 - w;
+    return `<div class="bar-row"><span>${k}</span><div class="bar"><span style="left:${left}%;width:${w}%;background:${v.mean >= 0 ? "#e4572e" : "#2a7ab0"}"></span></div><span class="num">${fmt(v.mean, 1, true)}°</span></div>`;
+  }).join("") + (GRID.meta.land_cover_source ? `<div class="small muted" style="margin-top:6px">Land cover: ${GRID.meta.land_cover_source}</div>` : "");
 }
 
 function renderRecCounts() {

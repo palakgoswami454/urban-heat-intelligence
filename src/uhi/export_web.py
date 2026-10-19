@@ -54,6 +54,11 @@ def run(cfg: Config):
         "overlay_ranges": {"heat": [-hv, hv], "lst": [float(lo), float(hi)], "cooling": [0, cv]},
         "recs": RECS, "groups": list(GROUPS), "suhi_by_year": summ["suhi_by_year"],
         "recommendation_counts": summ["recommendation_counts"],
+        "n_urban_hotspots": summ.get("n_urban_hotspots"), "land_cover_source": summ.get("land_cover_source"),
+        "urban_hotspot_recommendations": summ.get("urban_hotspot_recommendations"),
+        "heat_by_land_cover": summ.get("heat_by_land_cover"),
+        "mean_heat_urban_cells_c": summ.get("mean_heat_urban_cells_c"),
+        "mean_heat_fallow_cells_c": summ.get("mean_heat_fallow_cells_c"),
     }
     (d / "grid.json").write_text(json.dumps({"meta": meta, "cells": cells}, separators=(",", ":")))
 
@@ -64,7 +69,9 @@ def run(cfg: Config):
                 "scenes": mlst["scenes"], "patches": mlst["patches"]},
         "importance": summ["permutation_importance_rmse_increase"],
         "cooling": {"greening_hotspots_c": summ["mean_cooling_greening_hotspots_c"],
-                    "roofs_hotspots_c": summ["mean_cooling_roofs_hotspots_c"]},
+                    "roofs_hotspots_c": summ["mean_cooling_roofs_hotspots_c"],
+                    "greening_urban_hotspots_c": summ.get("mean_cooling_greening_urban_hotspots_c"),
+                    "roofs_urban_hotspots_c": summ.get("mean_cooling_roofs_urban_hotspots_c")},
     }
     if mfc:
         metrics["forecast"] = {k: mfc[k] for k in ("metrics", "heat_stress_threshold_c", "threshold_definition",
@@ -97,9 +104,24 @@ def write_results_md(cfg, mlst, summ, mfc):
           f"(heat anomaly >= {summ['hotspot_threshold_c']} C, years {summ['recent_years']})",
           f"- Mean modelled surface cooling in hotspots: greening {summ['mean_cooling_greening_hotspots_c']:.2f} C, "
           f"cool roofs {summ['mean_cooling_roofs_hotspots_c']:.2f} C",
-          f"- Recommendations for hotspots: {summ['recommendation_counts']}", "",
-          "Surface urban heat island intensity (built-up minus vegetated):", ""]
-    L += [f"- {s['year']}: {s['suhi_c']:.2f} C" for s in summ["suhi_by_year"] if s["suhi_c"] is not None]
+          f"- Recommendations for hotspots: {summ['recommendation_counts']}",
+          f"- Land cover source: {summ.get('land_cover_source')}",
+          f"- Hotspots by dominant cover: {summ.get('hotspot_dominant_cover')}",
+          f"- Hotspots in built-up areas (urban hotspots): {summ.get('n_urban_hotspots')}; their recommendations: "
+          f"{summ.get('urban_hotspot_recommendations')}",
+          f"- Mean modelled surface cooling in urban hotspots: greening "
+          f"{summ.get('mean_cooling_greening_urban_hotspots_c', 0):.2f} C, cool roofs "
+          f"{summ.get('mean_cooling_roofs_urban_hotspots_c', 0):.2f} C",
+          f"- Mean heat anomaly of mostly built-up cells: {summ.get('mean_heat_urban_cells_c')} C; "
+          f"of mostly bare/fallow cells: {summ.get('mean_heat_fallow_cells_c')} C", "",
+          "Heat anomaly by land cover (recent summers, pixels with >=50% of the class):", ""]
+    for k, v in (summ.get("heat_by_land_cover") or {}).items():
+        L.append(f"- {k}: mean {v['mean']:+.2f} C, median {v['q'][2]:+.2f} C (n={v['n_pixels']})")
+    L += ["", "Surface heat contrast per year (C):", "", "| Year | Built-up minus vegetated | Built-up minus bare/fallow |",
+          "|---|---|---|"]
+    for s in summ["suhi_by_year"]:
+        f = lambda v: "-" if v is None else f"{v:+.2f}"
+        L.append(f"| {s['year']} | {f(s['suhi_c'])} | {f(s.get('urban_minus_fallow_c'))} |")
     if mfc:
         L += ["", "## 4. 7-day max temperature forecast (test period " + mfc["test_period"] + ")", "",
               "| Method | MAE all leads | MAE +1d | MAE +3d | MAE +7d | Heat-day F1 +1d | Heat-day F1 +3d |",

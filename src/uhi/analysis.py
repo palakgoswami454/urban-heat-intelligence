@@ -82,9 +82,10 @@ def scenario_greening(X, frac=0.3):
     return rebuild(s2n, dem), target
 
 
-def scenario_cool_roofs(X, d_vis_nir=0.15, d_swir=0.10):
+def scenario_cool_roofs(X, built=None, d_vis_nir=0.15, d_swir=0.10):
     s2, dem = X[:6].copy(), X[9]
-    built = (X[7] > 0) & (X[6] < 0.3) & (X[8] < 0)
+    if built is None:
+        built = (X[7] > 0) & (X[6] < 0.3) & (X[8] < 0)
     add = np.array([d_vis_nir] * 4 + [d_swir] * 2, dtype="float32")[:, None, None]
     s2n = np.where(built[None], np.clip(s2 + add, 0, 1), s2)
     return rebuild(s2n, dem), built
@@ -129,8 +130,34 @@ RECS = {
     "protect_green": "Existing green cover - protect from development",
     "greening": "Urban greening (street trees, parks, green cover)",
     "cool_roofs": "Cool / reflective roofs and pavements",
+    "bare_land": "Bare / fallow land - hot surface but few residents; plantation or soil cover",
     "monitor": "Monitor - no strong single intervention signal",
 }
+
+
+def load_land_cover(cfg: Config, S):
+    """Land-cover fractions per 30 m pixel: ESA WorldCover if downloaded, else spectral-index proxies."""
+    from .data_satellite import worldcover_path
+
+    p = worldcover_path(cfg)
+    if p.exists():
+        z = np.load(p)
+        lc = {k: z[k].astype("float32") for k in z.files}
+        if lc["built"].shape == S.lst.shape:
+            lc["green"] = lc["tree"] + lc["shrub_grass"]
+            lc["fallow"] = lc["cropland"] + lc["bare"]
+            return lc, "ESA WorldCover 2021 (10 m)"
+    ndvi, ndbi, mndwi = S.X[6], S.X[7], S.X[8]
+    water = (mndwi > 0.1).astype("float32")
+    green = (ndvi > 0.45).astype("float32")
+    built = ((ndbi > 0) & (ndvi < 0.25) & (mndwi < 0)).astype("float32")
+    z = np.zeros_like(built)
+    return {"built": built, "green": green, "tree": green, "water": water, "fallow": z, "cropland": z,
+            "bare": z}, "spectral indices (built-up and bare soil not separable)"
+
+
+LC_CLASSES = {"Built-up": "built", "Tree cover": "tree", "Cropland / fallow": "cropland", "Bare ground": "bare",
+              "Water": "water"}
 
 
 def run(cfg: Config):
@@ -155,8 +182,11 @@ def run(cfg: Config):
     print(f"Reference scene {S.date}: occlusion + scenarios ...")
     pred = predict_scene(model, xn)
     contrib = occlusion(model, xn, pred)
+    lc, lc_source = load_land_cover(cfg, S)
+    print(f"Land cover: {lc_source}")
     Xg, tg = scenario_greening(S.X)
-    Xr, tr = scenario_cool_roofs(S.X)
+    roof_mask = (lc["built"] >= 0.5) & (S.X[8] < 0) if "WorldCover" in lc_source else None
+    Xr, tr = scenario_cool_roofs(S.X, roof_mask)
     cool_g = predict_scene(model, normalize(Xg, norm)) - pred
     cool_r = predict_scene(model, normalize(Xr, norm)) - pred
     cool_g[~tg] = 0.0
@@ -179,24 +209,27 @@ def run(cfg: Config):
     heat = np.nanmean(np.stack([yearly[y] for y in recent_years]), axis=0)
     trend_px = slope_per_year(years, [yearly[y] for y in years])
 
-    # land-cover proxies from the reference scene
-    ndvi, ndbi, mndwi = S.X[6], S.X[7], S.X[8]
-    water = (mndwi > 0.1).astype("float32")
-    green = (ndvi > 0.45).astype("float32")
-    built = ((ndbi > 0) & (ndvi < 0.25) & (mndwi < 0)).astype("float32")
+    ndvi, ndbi = S.X[6], S.X[7]
+    water, green, built, fallow = lc["water"], lc["green"], lc["built"], lc["fallow"]
 
-    # surface urban heat island intensity per year: built-up minus vegetated
-    suhi = []
-    for y in years:
-        b = yearly[y][built > 0]; g = yearly[y][green > 0]
-        suhi.append({"year": y, "suhi_c": float(np.nanmean(b) - np.nanmean(g)) if len(b) and len(g) else None})
+    # per year: built-up minus vegetated (classic SUHI) and built-up minus bare/fallow rural land
+    def mdiff(a, ma, mb):
+        return float(np.nanmean(a[ma]) - np.nanmean(a[mb])) if ma.sum() > 50 and mb.sum() > 50 else None
+    suhi = [{"year": y, "suhi_c": mdiff(yearly[y], built >= 0.5, green >= 0.5),
+             "urban_minus_fallow_c": mdiff(yearly[y], built >= 0.5, fallow >= 0.5)} for y in years]
+    heat_by_class = {}
+    for name, key in LC_CLASSES.items():
+        v = heat[(lc[key] >= 0.5) & np.isfinite(heat)]
+        if len(v) > 50:
+            heat_by_class[name] = {"n_pixels": int(len(v)), "mean": float(v.mean()),
+                                   "q": np.percentile(v, [5, 25, 50, 75, 95]).round(3).tolist()}
 
     k = cfg.cell_px
     R = lambda a: block_reduce(a.astype("float32"), k)
     cell = {
         "heat": R(heat), "trend": block_reduce(trend_px.astype("float32"), k), "lst_ref": R(S.lst),
         "pred_ref": R(pred), "obs_ref": R(S.anom), "ndvi": R(ndvi), "ndbi": R(ndbi),
-        "water": R(water), "green": R(green), "built": R(built),
+        "water": R(water), "green": R(green), "built": R(built), "fallow": R(fallow), "tree": R(lc["tree"]),
         "cool_green": R(cool_g), "cool_roof": R(cool_r),
     }
     cell_contrib = {g: R(v) for g, v in contrib.items()}
@@ -207,7 +240,10 @@ def run(cfg: Config):
     heat_v = cell["heat"][valid]
     hot_thr = max(float(np.nanpercentile(heat_v, 90)), 1.0)
     trend_pos = np.nan_to_num(np.clip(cell["trend"], 0, None))
-    priority = 100 * (0.55 * pct_rank(cell["heat"]) + 0.30 * pct_rank(cell["built"]) + 0.15 * pct_rank(trend_pos))
+    # heat (50%) + built-up exposure (35%) + warming trend (15%); cells with almost no buildings are
+    # down-weighted (exposure gate) because few people live there
+    priority = 100 * (0.50 * pct_rank(cell["heat"]) + 0.35 * pct_rank(cell["built"]) + 0.15 * pct_rank(trend_pos))
+    priority *= np.clip(np.nan_to_num(cell["built"]) / 0.15, 0, 1)
     priority[(cell["water"] > 0.5) | ~valid] = 0
 
     rr = np.minimum(np.arange(ny + 1) * k, H)
@@ -223,18 +259,21 @@ def run(cfg: Config):
             lon = [LON[a, b] for a, b in ci]
             lat = [LAT[a, b] for a, b in ci]
             w, g, b = cell["water"][i, j], cell["green"][i, j], cell["built"][i, j]
+            fa = cell["fallow"][i, j]
             cg, cr = float(cell["cool_green"][i, j]), float(cell["cool_roof"][i, j])
             if w > 0.5:
                 rec = "water"
             elif g > 0.5:
                 rec = "protect_green"
-            else:
-                options = {"greening": cg}
-                if b > 0.2:
-                    options["cool_roofs"] = cr
+            elif b >= 0.3:
+                options = {"greening": cg, "cool_roofs": cr}
                 rec = min(options, key=options.get)
                 if options[rec] > -0.3:
                     rec = "monitor"
+            elif fa >= 0.4:
+                rec = "bare_land"
+            else:
+                rec = "greening" if cg <= -0.3 else "monitor"
             drivers = {gname: round(float(cell_contrib[gname][i, j]), 2) for gname in GROUPS}
             cells.append({
                 "id": f"{i}-{j}",
@@ -245,7 +284,8 @@ def run(cfg: Config):
                 "pred": round(float(cell["pred_ref"][i, j]), 2),
                 "obs": None if not np.isfinite(cell["obs_ref"][i, j]) else round(float(cell["obs_ref"][i, j]), 2),
                 "ndvi": round(float(cell["ndvi"][i, j]), 3), "built": round(float(b), 3),
-                "green": round(float(g), 3), "water": round(float(w), 3),
+                "green": round(float(g), 3), "water": round(float(w), 3), "fallow": round(float(fa), 3),
+                "tree": round(float(cell["tree"][i, j]), 3), "urban_hot": bool(cell["heat"][i, j] >= hot_thr and b >= 0.3),
                 "cool_green": round(cg, 2), "cool_roof": round(cr, 2),
                 "priority": round(float(priority[i, j]), 1),
                 "hot": bool(cell["heat"][i, j] >= hot_thr),
@@ -254,7 +294,21 @@ def run(cfg: Config):
                           for y in years],
             })
 
+    hot = [c for c in cells if c["hot"]]
+    uh = [c for c in cells if c["urban_hot"]]
+    urban = [c for c in cells if c["built"] >= 0.5]
+    rural = [c for c in cells if c["fallow"] >= 0.5]
     summary = {
+        "land_cover_source": lc_source, "heat_by_land_cover": heat_by_class,
+        "n_urban_hotspots": len(uh),
+        "hotspot_dominant_cover": {"built-up (>=30%)": sum(c["built"] >= 0.3 for c in hot),
+                                   "bare / fallow (>=40%)": sum(c["built"] < 0.3 and c["fallow"] >= 0.4 for c in hot),
+                                   "other": sum(c["built"] < 0.3 and c["fallow"] < 0.4 for c in hot)},
+        "mean_heat_urban_cells_c": float(np.mean([c["heat"] for c in urban])) if urban else None,
+        "mean_heat_fallow_cells_c": float(np.mean([c["heat"] for c in rural])) if rural else None,
+        "mean_cooling_greening_urban_hotspots_c": float(np.mean([c["cool_green"] for c in uh] or [0])),
+        "mean_cooling_roofs_urban_hotspots_c": float(np.mean([c["cool_roof"] for c in uh] or [0])),
+        "urban_hotspot_recommendations": {r: sum(c["rec"] == r for c in uh) for r in RECS},
         "reference_scene": S.date, "reference_median_lst_c": round(S.median, 2),
         "years": years, "recent_years": recent_years, "hotspot_threshold_c": round(hot_thr, 2),
         "n_cells": len(cells), "n_hotspots": int(sum(c["hot"] for c in cells)),
@@ -268,7 +322,11 @@ def run(cfg: Config):
     save_json(summary, cfg.out_dir / "analysis_summary.json")
     np.savez_compressed(cfg.out_dir / "analysis_maps.npz", heat=heat, trend=trend_px, pred=pred,
                         obs=S.anom, lst=S.lst, cool_green=cool_g, cool_roof=cool_r, ndvi=ndvi,
+                        built=built, fallow=fallow,
                         **{f"contrib_{i}": v for i, v in enumerate(contrib.values())})
     (cfg.out_dir / "cells.json").write_text(json.dumps(cells))
-    print(f"{len(cells)} grid cells, {summary['n_hotspots']} hotspots (>= {hot_thr:.2f} C above city median)")
+    print(f"{len(cells)} grid cells, {summary['n_hotspots']} hotspots (>= {hot_thr:.2f} C above city median), "
+          f"{len(uh)} in built-up areas; cover of hotspots: {summary['hotspot_dominant_cover']}")
+    print(f"Mean heat anomaly: built-up cells {summary['mean_heat_urban_cells_c']}, "
+          f"fallow cells {summary['mean_heat_fallow_cells_c']}")
     return summary, cells

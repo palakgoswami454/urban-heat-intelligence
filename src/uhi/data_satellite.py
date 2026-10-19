@@ -147,6 +147,60 @@ def load_dem(client, cfg: Config, gbox):
     return dem
 
 
+# ESA WorldCover 2021 (10 m) classes, aggregated to fractions of each 30 m pixel
+WORLDCOVER_CLASSES = {"tree": [10], "shrub_grass": [20, 30], "cropland": [40], "built": [50],
+                      "bare": [60], "water": [80, 90, 95], "other": [70, 100]}
+
+
+def worldcover_fractions(grid: dict, client) -> dict:
+    """Land-cover fractions per 30 m pixel from ESA WorldCover 2021 (Planetary Computer)."""
+    import odc.stac
+    from affine import Affine
+    from odc.geo.geobox import GeoBox
+
+    f = 3  # 10 m sub-pixels per 30 m pixel side
+    r = grid["resolution"] / f
+    gb = GeoBox((grid["height"] * f, grid["width"] * f), Affine(r, 0, grid["origin_x"], 0, -r, grid["origin_y"]),
+                grid["crs"])
+    lon0, lat0, lon1, lat1 = _grid_bbox(grid)
+    items = _retry(lambda: _search(client, "esa-worldcover", [lon0, lat0, lon1, lat1], "2021-01-01", "2021-12-31"))
+    if not items:
+        raise RuntimeError("no WorldCover items found")
+    ds = _retry(lambda: odc.stac.load(items, bands=["map"], geobox=gb, resampling="nearest", pool=4))
+    lc = ds["map"].max(dim="time").values
+    H, W = grid["height"], grid["width"]
+    out = {}
+    for name, codes in WORLDCOVER_CLASSES.items():
+        m = np.isin(lc, codes).astype("float32")
+        out[name] = m.reshape(H, f, W, f).mean(axis=(1, 3)).astype("float16")
+    return out
+
+
+def _grid_bbox(grid):
+    from .grid import pixel_to_lonlat
+
+    lon, lat = pixel_to_lonlat(grid, [0, 0, grid["height"], grid["height"]], [0, grid["width"], grid["width"], 0])
+    return float(min(lon)), float(min(lat)), float(max(lon)), float(max(lat))
+
+
+def worldcover_path(cfg: Config):
+    return cfg.data_dir / ("worldcover_demo.npz" if cfg.demo else "worldcover.npz")
+
+
+def download_worldcover(cfg: Config, grid: dict, client) -> None:
+    path = worldcover_path(cfg)
+    if path.exists():
+        return
+    try:
+        print("Loading ESA WorldCover 2021 land cover ...")
+        fr = worldcover_fractions(grid, client)
+        np.savez_compressed(path, **fr)
+        print("   built-up {:.0%}, cropland {:.0%}, bare {:.0%}, tree {:.0%} of study area".format(
+            *(float(fr[k].astype("float32").mean()) for k in ("built", "cropland", "bare", "tree"))))
+    except Exception as e:  # analysis falls back to spectral indices
+        print(f"   WorldCover unavailable ({type(e).__name__}: {e}); using spectral-index land cover instead")
+
+
 def spectral_indices(s2: np.ndarray) -> np.ndarray:
     b03, b04, b08, b11 = s2[1], s2[2], s2[3], s2[4]
     eps = 1e-6
@@ -176,6 +230,7 @@ def download_scenes(cfg: Config) -> list[str]:
         print("Loading Copernicus DEM ...")
         dem = load_dem(client, cfg, gbox)
         np.save(dem_path, dem)
+    download_worldcover(cfg, grid, client)
 
     print("Searching Landsat 8/9 summer scenes ...")
     dates = find_landsat_dates(cfg, client)

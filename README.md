@@ -52,7 +52,8 @@ flowchart LR
 | Validation | **spatial block cross-validation** (whole map blocks held out) | tests on neighbourhoods the model never saw, avoiding spatial leakage |
 | Explainability | permutation importance (global), occlusion attribution in °C (local, per area) | answers *why is this area hot?* |
 | Recommendations | counterfactual inputs run through the trained model: 30 % vegetation blend, +0.15 roof reflectance | estimates cooling per area and picks the stronger intervention |
-| Priority score | 55 % heat anomaly + 30 % built-up exposure + 15 % warming trend (percentile ranks) | where action helps most people |
+| Land cover | ESA WorldCover 2021 (10 m) fractions per 30 m pixel | separates built-up from bare/fallow land, which look alike in spectral indices |
+| Priority score | 50 % heat anomaly + 35 % built-up exposure + 15 % warming trend (percentile ranks), down-weighted where almost nothing is built | where action helps most people |
 | Forecasting | **LSTM with temporal attention**, 30-day window → max temperature days +1…+7, vs. persistence / climatology / ridge | early warning of heat-stress days |
 | Deployment | JSON + PNG exports, Leaflet dashboard, LSTM re-implemented in JavaScript (verified against PyTorch) | live forecast without a server |
 
@@ -110,8 +111,12 @@ tests/                       JS-vs-PyTorch consistency test
   surface and air heat are related but not identical.
 - Cooling estimates come from the model's learned relationships (counterfactual inputs), not from physical
   simulation; they indicate *relative* potential and should be validated before any real intervention.
-- Satellite brightness is confounded with land use (bright surfaces in the training data are often hot
-  bare soil or concrete), so the cool-roof scenario can be underestimated by a data-driven model.
+- The what-if scenarios change only the satellite inputs, so the model answers "what would this area's surface
+  temperature be if it *looked* greener / more reflective", based on patterns learned across the city. The absolute
+  degrees are large and should be read as relative potential, not as a forecast of real-world cooling.
+- In the pre-monsoon season the hottest surfaces around Pune are bare and fallow farmland, not the city core.
+  Built-up and bare soil look similar in spectral indices, so land cover comes from ESA WorldCover 2021 (10 m),
+  and the priority score down-weights areas with almost no buildings (few residents exposed).
 - "Exposure" uses built-up fraction as a proxy for population; adding gridded population (e.g. WorldPop)
   and vulnerability data would turn the heat-exposure score into a fuller heat-*risk* score.
 - The browser forecast uses Open-Meteo's recent model analysis as input, which differs slightly from the
@@ -122,6 +127,7 @@ tests/                       JS-vs-PyTorch consistency test
 - Landsat 8/9 Collection 2 Level-2 — USGS, via [Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/dataset/landsat-c2-l2)
 - Sentinel-2 Level-2A — ESA Copernicus, via [Planetary Computer](https://planetarycomputer.microsoft.com/dataset/sentinel-2-l2a)
 - Copernicus DEM GLO-30 — via [Planetary Computer](https://planetarycomputer.microsoft.com/dataset/cop-dem-glo-30)
+- ESA WorldCover 2021 v200 (CC BY 4.0) — via [Planetary Computer](https://planetarycomputer.microsoft.com/dataset/esa-worldcover)
 - ERA5 reanalysis daily weather — via [Open-Meteo](https://open-meteo.com/) (CC BY 4.0)
 - Base map © OpenStreetMap contributors © CARTO
 
