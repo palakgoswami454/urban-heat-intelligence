@@ -58,10 +58,13 @@ async function init() {
 function initMap() {
   const b = GRID.meta.bounds;
   map = L.map("map", { preferCanvas: true, zoomControl: true }).fitBounds(b);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-    subdomains: "abcd", maxZoom: 19,
+  const streets = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', maxZoom: 19,
   }).addTo(map);
+  const satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+    attribution: "Imagery &copy; Esri, Maxar, Earthstar Geographics", maxZoom: 19,
+  });
+  L.control.layers({ "Street map": streets, "Satellite": satellite }, null, { position: "bottomright" }).addTo(map);
   for (const k of ["heat", "lst", "cooling"]) overlays[k] = L.imageOverlay(`data/${k}.png`, b, { opacity, interactive: false });
 
   const renderer = L.canvas({ padding: 0.3 });
