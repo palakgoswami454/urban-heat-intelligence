@@ -114,7 +114,9 @@
  },
  "cooling": {
   "greening_hotspots_c": -5.223611111111111,
-  "roofs_hotspots_c": -5.927777777777778
+  "roofs_hotspots_c": -0.27144444444444443,
+  "greening_urban_hotspots_c": -5.3565,
+  "roofs_urban_hotspots_c": -1.4772500000000002
  },
  "forecast": {
   "metrics": {

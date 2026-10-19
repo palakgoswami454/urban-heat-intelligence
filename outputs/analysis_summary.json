@@ -1,4 +1,80 @@
 {
+  "land_cover_source": "ESA WorldCover 2021 (10 m)",
+  "heat_by_land_cover": {
+    "Built-up": {
+      "n_pixels": 336464,
+      "mean": -0.7812044620513916,
+      "q": [
+        -4.974,
+        -2.628,
+        -0.934,
+        0.941,
+        3.91
+      ]
+    },
+    "Tree cover": {
+      "n_pixels": 157044,
+      "mean": -3.23909592628479,
+      "q": [
+        -8.189,
+        -5.312,
+        -3.226,
+        -1.135,
+        1.642
+      ]
+    },
+    "Cropland / fallow": {
+      "n_pixels": 182409,
+      "mean": 0.746644139289856,
+      "q": [
+        -4.302,
+        -1.623,
+        0.781,
+        3.142,
+        5.901
+      ]
+    },
+    "Bare ground": {
+      "n_pixels": 22052,
+      "mean": 1.3995884656906128,
+      "q": [
+        -3.056,
+        -0.344,
+        1.428,
+        3.293,
+        5.569
+      ]
+    },
+    "Water": {
+      "n_pixels": 12566,
+      "mean": -11.130505561828613,
+      "q": [
+        -17.976,
+        -16.984,
+        -11.056,
+        -7.663,
+        -0.914
+      ]
+    }
+  },
+  "n_urban_hotspots": 40,
+  "hotspot_dominant_cover": {
+    "built-up (>=30%)": 40,
+    "bare / fallow (>=40%)": 64,
+    "other": 256
+  },
+  "mean_heat_urban_cells_c": -1.1605988593155891,
+  "mean_heat_fallow_cells_c": 0.20234541577825163,
+  "mean_cooling_greening_urban_hotspots_c": -5.3565,
+  "mean_cooling_roofs_urban_hotspots_c": -1.4772500000000002,
+  "urban_hotspot_recommendations": {
+    "water": 0,
+    "protect_green": 6,
+    "greening": 34,
+    "cool_roofs": 0,
+    "bare_land": 0,
+    "monitor": 0
+  },
   "reference_scene": "2025-05-05",
   "reference_median_lst_c": 47.78,
   "years": [
@@ -30,40 +106,48 @@
   "suhi_by_year": [
     {
       "year": 2019,
-      "suhi_c": 5.6202192306518555
+      "suhi_c": -1.9788140058517456,
+      "urban_minus_fallow_c": -1.7553608417510986
     },
     {
       "year": 2020,
-      "suhi_c": 4.948760032653809
+      "suhi_c": -0.9688735008239746,
+      "urban_minus_fallow_c": -0.6796685457229614
     },
     {
       "year": 2021,
-      "suhi_c": 4.980308532714844
+      "suhi_c": -0.7493854761123657,
+      "urban_minus_fallow_c": -0.9838513731956482
     },
     {
       "year": 2022,
-      "suhi_c": 4.532404899597168
+      "suhi_c": -1.15474534034729,
+      "urban_minus_fallow_c": -0.8753107190132141
     },
     {
       "year": 2023,
-      "suhi_c": 5.3015642166137695
+      "suhi_c": -1.2447991371154785,
+      "urban_minus_fallow_c": -1.667925477027893
     },
     {
       "year": 2024,
-      "suhi_c": 5.996946811676025
+      "suhi_c": -1.7852470874786377,
+      "urban_minus_fallow_c": -1.9238970279693604
     },
     {
       "year": 2025,
-      "suhi_c": 4.780064582824707
+      "suhi_c": -1.1691386699676514,
+      "urban_minus_fallow_c": -1.2027778625488281
     }
   ],
   "mean_cooling_greening_hotspots_c": -5.223611111111111,
-  "mean_cooling_roofs_hotspots_c": -5.927777777777778,
+  "mean_cooling_roofs_hotspots_c": -0.27144444444444443,
   "recommendation_counts": {
     "water": 0,
-    "protect_green": 0,
-    "greening": 109,
-    "cool_roofs": 251,
+    "protect_green": 249,
+    "greening": 52,
+    "cool_roofs": 0,
+    "bare_land": 59,
     "monitor": 0
   }
 }
