@@ -1,0 +1,81 @@
+name: Run pipeline
+
+# Runs the whole project on GitHub's servers: downloads real satellite + weather data,
+# trains the deep learning models, explains them, and publishes results to the dashboard.
+on:
+  workflow_dispatch:
+    inputs:
+      max_scenes:
+        description: "Maximum number of Landsat summer scenes (more = better model, slower)"
+        default: "18"
+      epochs:
+        description: "Maximum training epochs per deep learning model"
+        default: "20"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pipeline
+  cancel-in-progress: false
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+
+      - name: Restore downloaded satellite scenes
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: data-${{ hashFiles('src/uhi/config.py') }}-${{ inputs.max_scenes }}-${{ github.run_id }}
+          restore-keys: |
+            data-${{ hashFiles('src/uhi/config.py') }}-
+
+      - name: "1/6 Download satellite + weather data"
+        run: python run_pipeline.py --stage download --max-scenes ${{ inputs.max_scenes }}
+
+      - name: "2/6 Train surface-temperature models"
+        run: python run_pipeline.py --stage train --epochs ${{ inputs.epochs }}
+
+      - name: "3/6 Explainability, scenarios, hotspots"
+        run: python run_pipeline.py --stage analyze
+
+      - name: "4/6 Train heat forecaster"
+        run: python run_pipeline.py --stage forecast
+
+      - name: "5/6 Figures"
+        run: python run_pipeline.py --stage figures
+
+      - name: "6/6 Export dashboard data"
+        run: python run_pipeline.py --stage export
+
+      - name: Upload trained models and full outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: outputs-${{ github.run_number }}
+          path: |
+            outputs
+            data/download_log.json
+
+      - name: Commit results to the repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f outputs/RESULTS.md outputs/*.json outputs/figures web/data
+          git commit -m "Pipeline results (run ${{ github.run_number }})" || echo "Nothing to commit"
+          git pull --rebase
+          git push

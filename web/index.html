@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Urban Heat Intelligence · Pune</title>
+  <meta name="description" content="Deep learning heat-risk mapping, forecasting and explainable cooling recommendations for Pune." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="demo-banner" class="banner" hidden>
+    DEMO DATA — the numbers on this page come from synthetic test data, not Pune.
+    Run the <b>Run pipeline</b> GitHub Action to replace them with real satellite results.
+  </div>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">☀︎</div>
+      <div>
+        <h1>Urban Heat Intelligence</h1>
+        <p id="subtitle">Deep learning heat-risk map · Pune</p>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="overview">Overview</button>
+      <button class="tab" data-tab="hotspots">Priority areas</button>
+      <button class="tab" data-tab="forecast">Heat forecast</button>
+      <button class="tab" data-tab="model">Model</button>
+    </nav>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <!-- OVERVIEW -->
+      <section class="panel active" id="tab-overview">
+        <div class="kpis" id="kpis"></div>
+        <div class="card">
+          <h3>Surface urban heat island</h3>
+          <p class="muted">How much hotter built-up land is than vegetated land, each summer.</p>
+          <div class="chart-box"><canvas id="suhi-chart"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>What the hotspots need</h3>
+          <div id="rec-counts"></div>
+        </div>
+        <div class="card how">
+          <h3>How it works</h3>
+          <ol>
+            <li><b>Satellites</b> — Landsat 8/9 surface temperature + Sentinel-2 imagery + elevation, every pre-monsoon summer since 2019.</li>
+            <li><b>Deep learning</b> — a U-Net learns how land cover and terrain shape surface heat, and fills cloud gaps.</li>
+            <li><b>Explainability</b> — occlusion and permutation analysis show <i>why</i> each area is hot.</li>
+            <li><b>What-if</b> — the model simulates greening and cool roofs to estimate cooling per area.</li>
+            <li><b>Forecast</b> — an attention-LSTM predicts daily max temperature 7 days ahead.</li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- HOTSPOTS -->
+      <section class="panel" id="tab-hotspots">
+        <div class="card">
+          <h3>Top priority areas</h3>
+          <p class="muted">Ranked by heat anomaly (55%), built-up exposure (30%) and warming trend (15%). Click to zoom.</p>
+          <ol class="rank" id="rank-list"></ol>
+        </div>
+      </section>
+
+      <!-- FORECAST -->
+      <section class="panel" id="tab-forecast">
+        <div class="card">
+          <h3>7-day heat forecast · live</h3>
+          <p class="muted">Our attention-LSTM runs in your browser on the latest 30 days of Open-Meteo weather for Pune.</p>
+          <div class="chart-box tall"><canvas id="fc-chart"></canvas></div>
+          <div id="fc-status" class="muted small">Loading live weather…</div>
+          <table class="tbl" id="fc-table"></table>
+        </div>
+        <div class="card">
+          <h3>Forecast skill on test years</h3>
+          <p class="muted">Mean absolute error of daily max temperature by lead time.</p>
+          <div class="chart-box"><canvas id="fc-skill"></canvas></div>
+        </div>
+      </section>
+
+      <!-- MODEL -->
+      <section class="panel" id="tab-model">
+        <div class="card">
+          <h3>Surface temperature models</h3>
+          <p class="muted">Tested on neighbourhoods held out from training (spatial block cross-validation).</p>
+          <table class="tbl" id="model-table"></table>
+        </div>
+        <div class="card">
+          <h3>What drives heat (global)</h3>
+          <p class="muted">Increase in test error when a factor is shuffled — bigger means more important.</p>
+          <div id="importance"></div>
+        </div>
+        <div class="card small muted" id="data-notes"></div>
+      </section>
+    </aside>
+
+    <section class="map-wrap">
+      <div id="map"></div>
+      <div class="layer-box">
+        <div class="lb-title">Map layer</div>
+        <label><input type="radio" name="layer" value="priority" checked /> Priority score</label>
+        <label><input type="radio" name="layer" value="heat" /> Heat anomaly</label>
+        <label><input type="radio" name="layer" value="lst" /> Surface temperature</label>
+        <label><input type="radio" name="layer" value="rec" /> Recommended action</label>
+        <label><input type="radio" name="layer" value="cooling" /> Cooling potential</label>
+        <label><input type="radio" name="layer" value="trend" /> Warming trend</label>
+        <hr />
+        <label><input type="checkbox" id="hot-outline" checked /> Outline hotspots</label>
+        <label class="op">Opacity <input type="range" id="opacity" min="0.1" max="1" step="0.05" value="0.7" /></label>
+        <div id="legend"></div>
+      </div>
+      <div class="detail" id="detail" hidden></div>
+    </section>
+  </main>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="vendor/chartjs/chart.umd.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

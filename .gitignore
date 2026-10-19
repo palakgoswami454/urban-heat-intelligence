@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+/data/
+outputs/models/
+outputs/analysis_maps.npz
+outputs/cells.json
+.venv/
+.DS_Store

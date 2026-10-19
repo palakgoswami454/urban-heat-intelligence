@@ -1,0 +1,31 @@
+name: Tests
+
+# Fast offline check: runs the complete pipeline on small synthetic data and verifies
+# that the in-browser JavaScript model gives the same forecast as PyTorch.
+on:
+  push:
+    branches: [main]
+    paths: ["src/**", "run_pipeline.py", "web/lstm.js", "tests/**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+      - name: End-to-end pipeline on synthetic data
+        run: python run_pipeline.py --demo --epochs 2 --fc-epochs 2
+      - name: JavaScript LSTM matches PyTorch
+        run: node tests/test_js_lstm.mjs

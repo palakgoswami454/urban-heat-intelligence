@@ -1,0 +1,15 @@
+# Install PyTorch first (CPU build is enough; GPU is used automatically if present):
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch>=2.2
+numpy>=1.26
+pandas>=2.1
+scipy>=1.11
+scikit-learn>=1.4
+matplotlib>=3.8
+pyproj>=3.6
+requests>=2.31
+# satellite data access (Microsoft Planetary Computer, no account needed)
+pystac-client>=0.7
+planetary-computer>=1.0
+odc-stac>=0.3.9
+rasterio>=1.3
