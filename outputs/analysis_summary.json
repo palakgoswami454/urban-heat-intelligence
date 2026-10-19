@@ -1,0 +1,69 @@
+{
+  "reference_scene": "2025-05-05",
+  "reference_median_lst_c": 47.78,
+  "years": [
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024,
+    2025
+  ],
+  "recent_years": [
+    2023,
+    2024,
+    2025
+  ],
+  "hotspot_threshold_c": 4.41,
+  "n_cells": 3591,
+  "n_hotspots": 360,
+  "cell_size_m": 510,
+  "permutation_importance_rmse_increase": {
+    "Vegetation": 3.4307098388671875,
+    "Built-up / impervious": 1.8553500175476074,
+    "Water / moisture": 1.040985345840454,
+    "Terrain (elevation)": 0.11019575595855713,
+    "Visible reflectance (albedo)": 0.682018518447876
+  },
+  "test_rmse_base": 1.8721427917480469,
+  "suhi_by_year": [
+    {
+      "year": 2019,
+      "suhi_c": 5.6202192306518555
+    },
+    {
+      "year": 2020,
+      "suhi_c": 4.948760032653809
+    },
+    {
+      "year": 2021,
+      "suhi_c": 4.980308532714844
+    },
+    {
+      "year": 2022,
+      "suhi_c": 4.532404899597168
+    },
+    {
+      "year": 2023,
+      "suhi_c": 5.3015642166137695
+    },
+    {
+      "year": 2024,
+      "suhi_c": 5.996946811676025
+    },
+    {
+      "year": 2025,
+      "suhi_c": 4.780064582824707
+    }
+  ],
+  "mean_cooling_greening_hotspots_c": -5.223611111111111,
+  "mean_cooling_roofs_hotspots_c": -5.927777777777778,
+  "recommendation_counts": {
+    "water": 0,
+    "protect_green": 0,
+    "greening": 109,
+    "cool_roofs": 251,
+    "monitor": 0
+  }
+}
